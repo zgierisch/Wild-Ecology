@@ -1,0 +1,5 @@
+name: Wild Ecology
+id: wild_ecology
+version: 0.1.0
+author: pokemon-ecology
+summary: Persistent wild Pokemon with relationships and voluntary joining.

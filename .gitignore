@@ -1,0 +1,62 @@
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editor settings
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs and temp files
+*.log
+*.tmp
+*.bak
+*.orig
+
+# Lua bytecode / runtime artifacts
+*.luac
+
+# Python cache and virtual envs (workspace has helper scripts)
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+
+# Test / coverage artifacts
+.coverage
+coverage/
+htmlcov/
+.pytest_cache/
+
+# Build/output directories
+build/
+dist/
+out/
+
+# Mod/tool runtime data
+.cache/
+.modkit/
+reports/
+artifacts/
+tmp/
+
+# Local save/debug dumps
+*.sav
+*.save
+*.dump
+
+# Optional package manager caches
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Local environment files
+.env
+.env.*

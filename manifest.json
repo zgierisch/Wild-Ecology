@@ -1,0 +1,10 @@
+{
+  "id": "wild_ecology",
+  "name": "Wild Ecology",
+  "version": "0.1.0",
+  "category": "MECHANIC",
+  "profile": "overhaul",
+  "targets": ["pokemon-red", "pokemon-blue", "pokemon-yellow"],
+  "description": "Standalone Gen1Recomp mod for persistent wild Pokemon ecology.",
+  "entry": "main.lua"
+}
