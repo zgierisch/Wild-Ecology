@@ -18,14 +18,17 @@ function WildEcology.init(mod)
   WildEcology.mod = mod
   Save.init(mod)
 
-  local mapId = mod and mod.world and mod.world.getCurrentMapId and mod.world.getCurrentMapId() or nil
+  local world = mod and mod.world
+  local current = world and world.current and world:current() or nil
+  local mapId = current and current.mapId or nil
   if mapId ~= Config.phase0.testMapId then
     return
   end
 
+  local simulationTick = Save.nextTick()
   local entity = PopulationManager.getOrCreatePhase0Entity()
   local player = getPlayerEntity()
-  PopulationManager.updatePhase0Relationship(entity, player)
+  PopulationManager.updatePhase0Relationship(entity, player, simulationTick)
 
   local avatar = AvatarFactory.spawn(mod, entity)
   if avatar then

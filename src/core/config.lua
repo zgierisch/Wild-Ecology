@@ -5,7 +5,8 @@ Config.phase0 = {
   testEntityId = "wild:route01:0001",
   testSpecies = "PIDGEY",
   testLevel = 4,
-  defaultRelationshipTrust = 10
+  defaultRelationshipTrust = 10,
+  calmProximityCooldownTicks = 3
 }
 
 Config.relationships = {

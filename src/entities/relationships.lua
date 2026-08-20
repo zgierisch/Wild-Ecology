@@ -21,6 +21,7 @@ function Relationships.getOrCreate(entity, targetEntityId)
       threatMemory = 0,
       hostility = 0,
       lastSeenTick = 0,
+      lastCalmTick = -999999,
       importance = 0.1
     }
   end
@@ -28,12 +29,23 @@ function Relationships.getOrCreate(entity, targetEntityId)
   return entity.relationships[targetEntityId]
 end
 
-function Relationships.observeCalmProximity(entity, targetEntityId)
+function Relationships.observeCalmProximity(entity, targetEntityId, nowTick, cooldownTicks)
   local rel = Relationships.getOrCreate(entity, targetEntityId)
+
+  local currentTick = nowTick or (rel.lastSeenTick + 1)
+  local cooldown = cooldownTicks or 0
+  local canApplyGain = (currentTick - rel.lastCalmTick) >= cooldown
+
+  rel.lastSeenTick = currentTick
+  if not canApplyGain then
+    return rel, false
+  end
+
   rel.familiarity = clamp(rel.familiarity + 1, 0, 100)
   rel.trust = clamp(rel.trust + 1, 0, 100)
-  rel.lastSeenTick = rel.lastSeenTick + 1
-  return rel
+  rel.threatMemory = clamp(rel.threatMemory - 0.1, 0, 100)
+  rel.lastCalmTick = currentTick
+  return rel, true
 end
 
 return Relationships
