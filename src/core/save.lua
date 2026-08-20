@@ -9,7 +9,26 @@ local DEFAULT_STATE = {
   schemaVersion = CURRENT_SCHEMA_VERSION,
   nextEntitySerial = 1,
   simulationTick = 0,
-  populations = {}
+  populations = {},
+  debug = {
+    devLog = {
+      nextSequence = 1,
+      entries = {}
+    },
+    phase0 = {
+      lastEvent = nil,
+      lastEntityId = nil,
+      lastSpawnAvatarId = nil,
+      lastDespawnAvatarId = nil,
+      lastRespawnCount = 0,
+      lastState = nil,
+      lastTrust = 0,
+      lastThreatMemory = 0,
+      lastMapId = nil,
+      lastContextMapId = nil,
+      lastBehaviorMode = "normal"
+    }
+  }
 }
 
 local function deepCopy(tbl)
@@ -37,6 +56,39 @@ local function ensureStateShape(state)
   if state.populations == nil then
     state.populations = {}
   end
+  if state.debug == nil then
+    state.debug = {}
+  end
+  if state.debug.devLog == nil then
+    state.debug.devLog = {
+      nextSequence = 1,
+      entries = {}
+    }
+  end
+  state.debug.devLog.nextSequence = state.debug.devLog.nextSequence or 1
+  state.debug.devLog.entries = state.debug.devLog.entries or {}
+  if state.debug.phase0 == nil then
+    state.debug.phase0 = {
+      lastEvent = nil,
+      lastEntityId = nil,
+      lastSpawnAvatarId = nil,
+      lastDespawnAvatarId = nil,
+      lastRespawnCount = 0,
+      lastState = nil,
+      lastTrust = 0,
+      lastThreatMemory = 0,
+      lastMapId = nil,
+      lastContextMapId = nil,
+      lastBehaviorMode = "normal"
+    }
+  end
+
+  if state.debug.phase0.lastContextMapId == nil then
+    state.debug.phase0.lastContextMapId = nil
+  end
+  if state.debug.phase0.lastBehaviorMode == nil then
+    state.debug.phase0.lastBehaviorMode = "normal"
+  end
 
   return state
 end
@@ -63,6 +115,16 @@ end
 
 function Save.getState()
   return Save.cache
+end
+
+function Save.getPhase0Debug()
+  local state = Save.getState()
+  return state and state.debug and state.debug.phase0 or nil
+end
+
+function Save.getDevLog()
+  local state = Save.getState()
+  return state and state.debug and state.debug.devLog or nil
 end
 
 function Save.flush()

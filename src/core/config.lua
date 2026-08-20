@@ -6,7 +6,12 @@ Config.phase0 = {
   testSpecies = "PIDGEY",
   testLevel = 4,
   defaultRelationshipTrust = 10,
-  calmProximityCooldownTicks = 3
+  calmProximityCooldownTicks = 3,
+
+  -- Optional in-game verification knobs for Phase 0. Keep nil for normal behavior.
+  debugForceTrust = nil,
+  debugForceThreatMemory = nil,
+  debugForceHostility = nil
 }
 
 Config.relationships = {

@@ -36,7 +36,8 @@ function PopulationManager.updatePhase0Relationship(entity, playerEntity, simula
     Config.phase0.calmProximityCooldownTicks
   )
   rel.trust = math.max(rel.trust, Config.phase0.defaultRelationshipTrust)
-  return rel
+  local gainedCalmTrust = rel.lastCalmTick == simulationTick
+  return rel, gainedCalmTrust
 end
 
 return PopulationManager
