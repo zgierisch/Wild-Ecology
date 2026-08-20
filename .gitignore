@@ -45,6 +45,12 @@ reports/
 artifacts/
 tmp/
 
+# Quedonde generated artifacts
+.code_index.sqlite
+.code_index.cache
+.quedonde_context_history.json
+session_state.py
+
 # Local save/debug dumps
 *.sav
 *.save
