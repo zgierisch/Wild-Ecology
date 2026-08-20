@@ -2,10 +2,24 @@ local Config = require("src.core.config")
 local Save = require("src.core.save")
 local PopulationManager = require("src.population.manager")
 local AvatarFactory = require("src.world.avatar_factory")
+local Controller = require("src.behavior.controller")
 
 local WildEcology = {
   activeAvatars = {}
 }
+
+local function applyPhase0AvatarBehavior(entity, state)
+  entity.avatar = entity.avatar or {}
+
+  if state == "FLEE" then
+    entity.avatar.movement = "WALK"
+    entity.avatar.range = "ANY"
+    return
+  end
+
+  entity.avatar.movement = "STAY"
+  entity.avatar.range = "DOWN"
+end
 
 local function getPlayerEntity()
   return {
@@ -28,7 +42,9 @@ function WildEcology.init(mod)
   local simulationTick = Save.nextTick()
   local entity = PopulationManager.getOrCreatePhase0Entity()
   local player = getPlayerEntity()
-  PopulationManager.updatePhase0Relationship(entity, player, simulationTick)
+  local rel = PopulationManager.updatePhase0Relationship(entity, player, simulationTick)
+  local state = Controller.tick(entity, rel)
+  applyPhase0AvatarBehavior(entity, state)
 
   local avatar = AvatarFactory.spawn(mod, entity)
   if avatar then

@@ -1,4 +1,4 @@
-local Entity = require("src.entities.entity")
+local Controller = require("src.behavior.controller")
 
 local function assertEquals(actual, expected, message)
 	if actual ~= expected then
@@ -6,33 +6,27 @@ local function assertEquals(actual, expected, message)
 	end
 end
 
-local pidgeyA = Entity.newWildPokemon({
-	id = "wild:test:0001",
-	species = "PIDGEY",
-	level = 4,
-	personalitySeed = 847219
-})
+local entity = { id = "wild:test:0001" }
 
-local pidgeyB = Entity.newWildPokemon({
-	id = "wild:test:0002",
-	species = "PIDGEY",
-	level = 4,
-	personalitySeed = 847219
-})
+local calmRelationship = {
+	trust = 10,
+	threatMemory = 0,
+	hostility = 0
+}
 
-local pidgeyC = Entity.newWildPokemon({
-	id = "wild:test:0003",
-	species = "PIDGEY",
-	level = 4,
-	personalitySeed = 777777
-})
+local fleeRelationship = {
+	trust = 2,
+	threatMemory = 2,
+	hostility = 1
+}
 
-assertEquals(pidgeyA.temperament.boldness, pidgeyB.temperament.boldness, "same seed should produce same boldness")
-assertEquals(pidgeyA.temperament.sociability, pidgeyB.temperament.sociability, "same seed should produce same sociability")
+local calmState = Controller.tick(entity, calmRelationship)
+assertEquals(calmState, "IDLE", "high trust and low threat should select IDLE")
 
-if pidgeyA.temperament.boldness == pidgeyC.temperament.boldness
-and pidgeyA.temperament.sociability == pidgeyC.temperament.sociability then
-	error("different seeds should vary at least one temperament trait")
-end
+local fleeState = Controller.tick(entity, fleeRelationship)
+assertEquals(fleeState, "FLEE", "higher threat than trust should select FLEE")
+
+local rememberedState = Controller.tick(entity, nil)
+assertEquals(rememberedState, "IDLE", "missing relationship should default to IDLE")
 
 return true
