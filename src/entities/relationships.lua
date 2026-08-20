@@ -48,4 +48,19 @@ function Relationships.observeCalmProximity(entity, targetEntityId, nowTick, coo
   return rel, true
 end
 
+function Relationships.applySocialFear(entity, sourceEntityId, targetEntityId, nowTick, fearSignal)
+  local sourceRel = Relationships.getOrCreate(entity, sourceEntityId)
+  local targetRel = Relationships.getOrCreate(entity, targetEntityId)
+
+  local trustWeight = clamp((sourceRel.trust or 0) / 100, 0, 1)
+  local signal = fearSignal or 0
+  local threatDelta = signal * trustWeight
+
+  targetRel.lastSeenTick = nowTick or targetRel.lastSeenTick
+  targetRel.threatMemory = clamp((targetRel.threatMemory or 0) + threatDelta, 0, 100)
+  targetRel.trust = clamp((targetRel.trust or 0) - (threatDelta * 0.25), 0, 100)
+
+  return targetRel, threatDelta
+end
+
 return Relationships

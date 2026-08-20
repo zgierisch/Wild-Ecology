@@ -19,4 +19,10 @@ Config.relationships = {
   trustDecayPerDay = 0
 }
 
+Config.phase2 = {
+  demoAssociateId = "wild:route01:ally",
+  defaultAssociateTrust = 60,
+  socialFearSignal = 2
+}
+
 return Config

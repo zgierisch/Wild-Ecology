@@ -40,4 +40,23 @@ function PopulationManager.updatePhase0Relationship(entity, playerEntity, simula
   return rel, gainedCalmTrust
 end
 
+function PopulationManager.getOrCreatePhase2AssociateRelationship(entity, simulationTick)
+  local phase2 = Config.phase2 or {}
+  local associateId = phase2.demoAssociateId or "wild:route01:ally"
+  local rel = Relationships.getOrCreate(entity, associateId)
+
+  rel.lastSeenTick = simulationTick or rel.lastSeenTick
+  rel.familiarity = math.max(rel.familiarity or 0, 10)
+  rel.trust = math.max(rel.trust or 0, phase2.defaultAssociateTrust or 60)
+
+  return rel
+end
+
+function PopulationManager.applyPhase2SocialFear(entity, playerEntity, simulationTick)
+  local phase2 = Config.phase2 or {}
+  local associateId = phase2.demoAssociateId or "wild:route01:ally"
+  local signal = phase2.socialFearSignal or 0
+  return Relationships.applySocialFear(entity, associateId, playerEntity.id, simulationTick, signal)
+end
+
 return PopulationManager
