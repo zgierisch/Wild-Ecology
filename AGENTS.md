@@ -2,145 +2,108 @@
 
 ## Purpose
 
-This repository implements Wild Ecology, a standalone Gen1Recomp mod for persistent wild Pokemon, visible overworld populations, naturalistic behavior, generic entity-to-entity relationships, social learning, and an eventual voluntary-joining path.
-
-This file is the operating guide for coding agents working in this repository.
+This repository implements Wild Ecology, a standalone Gen1Recomp mod for
+persistent wild Pokemon, visible overworld populations, naturalistic behavior,
+generic entity relationships, social learning, and future voluntary joining.
 
 Primary references:
-- gen1recomp_wild_ecology_handoff.md
-- quedonde-README.md
-- Current Gen1Recomp source/docs
-- Gen1PC-OverworldEncounters as reference only (never a dependency)
 
-## Core invariants
+- `ARCHITECTURE.md`
+- `WILD_ECOLOGY_ROADMAP.md`
+- `ASSETS.md`
+- `quedonde-README.md`
+- relevant current Gen1Recomp source and documentation
 
-1. Player is a normal entity target in the relationship graph.
-- Do not add player-only relationship fields.
+## Core Invariants
 
-2. Persistent entity is authoritative, runtime avatar is disposable.
-- Never serialize runtime engine objects.
-
-3. Relationships are sparse and directed.
-- Do not build all-to-all matrices.
-
-4. Mod remains standalone.
-- No hard dependency on other gameplay mods.
-
+1. The player is a normal entity target in the relationship graph. Do not add
+   player-only relationship fields.
+2. Persistent entities are authoritative and runtime avatars are disposable.
+   Never serialize runtime engine objects.
+3. Relationships are sparse and directed. Do not build all-to-all matrices.
+4. The mod remains standalone. Do not add hard gameplay-mod dependencies.
 5. Reference mods are references, not API contracts.
+6. Voluntary joining must end in the normal owned-Pokemon pipeline.
+7. Species behavior is archetype plus parameters, temperament, and context.
+   Avoid species-specific AI controllers.
 
-6. One owned-Pokemon pipeline.
-- Voluntary joining must end in normal ownership flow.
-
-7. Species behavior is archetype + parameters + temperament + context.
-- Avoid species-by-species hardcoded AI.
-
-## Source-of-truth order
+## Source of Truth
 
 1. Repository code and tests
-2. gen1recomp_wild_ecology_handoff.md
-3. Current Gen1Recomp source/docs
-4. Public API definitions/examples
+2. `ARCHITECTURE.md`
+3. Current Gen1Recomp source and documentation
+4. Public API definitions and examples
 5. Reference mods
 6. External discussion
 
-## Required search workflow
+## Search Workflow
 
-Use quedonde.py for connection-style architecture questions and direct symbol search for concrete symbols.
+Use `quedonde.py` for connection-style architecture questions and direct symbol
+search for concrete symbols. Before the first `quedonde.py` use in a session:
 
-Before first quedonde.py use in a session:
-1. Read quedonde-README.md
-2. Run required setup/index steps
-3. Validate results against source files directly
+1. Read `quedonde-README.md`.
+2. Run the documented setup and index commands.
+3. Validate results against source files directly.
 
-## Roadmap discipline
+The bundled Lua index is not a complete call graph; direct reference searches
+remain required.
 
-Authoritative phase list (WILD_ECOLOGY_ROADMAP.md, supersedes any older numbering):
-- Phase 3: persistent population identity
-- Phase 4: perception & interaction events
-- Phase 5: behavior decision engine
-- Phase 6: social behavior
-- Phase 7: environmental understanding
-- Phase 8: needs & routine behavior
-- Phase 9: species ecology profiles
-- Phase 10: relationship development & voluntary joining
-- Phase 11: population lifecycle
-- Phase 12: simulation performance & persistence hardening
-- Phase 13: compatibility/API layer
-- Phase 14: balance, debugging tools & release
+## Roadmap Discipline
 
-Do not implement future-phase features unless required by current phase seams.
+The authoritative phase list and incomplete work are in
+`WILD_ECOLOGY_ROADMAP.md`. Do not implement future-phase features unless a
+current contract requires the boundary.
 
-## Engine boundary rule
+Joining, battle integration, population lifecycle, persistence/performance
+hardening, and a public compatibility API remain deferred. Their old source
+placeholders were not implementations.
 
-Keep engine-facing logic isolated in adapters such as:
-- src/world/avatar_factory.lua
-- src/world/environment.lua
-- src/interaction/battle_bridge.lua
+## Engine Boundary
 
-Keep persistence/entities/relationships as plain Lua data where possible.
+Keep engine-facing logic isolated in existing adapters such as:
 
-Gen1Recomp is an immutable runtime dependency.
-- Allowed: inspect engine source, use documented public APIs, and use narrowly isolated `engine_internals` access when the public API cannot express a required stock-runtime operation.
-- Not allowed: edit, fork, rebuild, install, or require a custom Gen1Recomp build.
-- Keep internal requires and runtime-object mutation inside world/avatar adapters only.
-- Ordinary WALK movement may use stock `src.world.Collision` and NPC state through the declared permission; never fall back to collision-skipping `scriptMove`.
+- `src/world/runtime_avatar_adapter.lua`
+- `src/world/avatar_factory.lua`
+- `src/world/environment.lua`
 
-Persistent entity survives avatar destruction.
-- Runtime/avatar state never survives avatar destruction.
-- Any state containing live NPC references, map-local movement data, motion execution, rejection caches, perception contacts, target coordinates, or pathfinding results is transient.
-- Reset transient runtime state when an avatar is destroyed or reconstructed; then re-observe and reevaluate behavior.
-- Persistent records may retain identity, species, temperament, relationships, long-term memory, and population/home identity, but never an in-progress avatar command.
+Keep persistence, entities, relationships, and ecology state as plain Lua data
+where possible.
 
-## Persistence rules
+Gen1Recomp is an immutable runtime dependency:
 
-Use mod.storage for persistent data.
-Include save schema versioning and migrations when shape changes.
-Never store runtime NPC objects, functions, or engine userdata.
+- Inspect engine source and use documented public APIs.
+- Use narrowly isolated `engine_internals` access only when a required stock
+  runtime operation has no public API.
+- Do not edit, fork, rebuild, install, or require a custom Gen1Recomp build.
+- Keep internal requires and runtime-object mutation inside world/avatar seams.
+- Ordinary movement uses stock collision-authoritative `WALK`; never fall back
+  to collision-skipping `scriptMove`.
 
-## Testing expectations
+Persistent entities survive avatar destruction. Runtime state does not.
+Transient state includes live NPC references, map-local motion data, queued
+commands, rejection/perception caches, target coordinates, and pathfinding
+results. Clear it on destruction or reconstruction, then observe and deliberate
+again. Identity, temperament, sparse relationships, long-term memory, drives,
+location/concealment, and population/home records may persist as plain data.
 
-Each phase adds deterministic tests at the lowest practical layer.
-Do not claim tests passed unless actually executed.
+## Persistence
 
-## Stop conditions
+Use `mod.storage` through the Gen1 persistence adapter. Preserve save schema
+versioning and migrations when durable shapes change. Never store runtime NPC
+objects, functions, engine userdata, or an in-progress avatar command.
+
+## Testing
+
+Add deterministic tests at the lowest practical layer. Run specs in fresh Lua
+processes, and do not claim a test passed unless it was executed. Headless and
+fake-adapter coverage does not prove full live-engine behavior.
+
+## Stop Conditions
 
 Stop and report if a change would:
-- make player a special relationship target,
-- require serializing runtime objects,
-- create hard mod dependency,
-- require broad engine changes without validated seam,
+
+- make the player a special relationship target;
+- serialize runtime objects;
+- create a hard mod dependency;
+- require broad engine changes without a validated boundary; or
 - break save compatibility without migration.
-
-## Current milestone
-
-Phase 3 (persistent population identity) is met: stable entity IDs, disposable
-runtime avatars, deterministic visible-subset selection, persisted spawn
-cells, relationship state surviving map transitions, versioned/serialized
-population records. Phase 4 (generic perception/interaction events) and
-Phase 5 (utility-scored behavior decision engine with hysteresis) are also
-substantially implemented (src/world/perception.lua, src/behavior/utility.lua
-+ controller.lua). Phase 6 (social behavior) is met: associate following,
-generic fear/reassurance propagation (any trusted associate, any target --
-src/population/manager.lua's propagateAssociateSocialSignal), crowding guard,
-and weak directional alignment (ambient wandering nudges toward nearby
-trusted associates' recent heading) are all implemented.
-
-Phase 7 environmental semantics are implemented. Phase 8 remains in progress:
-THIRST, HUNGER/foraging, FATIGUE/REST, concealed rest, local HOME/RETURN_HOME,
-and deterministic composed daily-rhythm proofs exist without schedules or
-queues. Live observation/tuning and broader executable resource semantics
-remain. Phase 11 population lifecycle (capture/removal/replenishment/migration)
-has not started.
-
-Partial: Phase 9 (species ecology profiles cover eleven representative species
-across eight validated archetypes; runtime observation, balancing, and broader
-Gen I coverage remain), Phase 10 (voluntary_join.lua has a threshold check but
-isn't wired into the real owned-Pokemon pipeline), Phase 12 (save
-versioning exists, no large-population perf hardening), Phase 13
-(compat/exports.lua is a bare ping() stub).
-
-Current focus: live Phase 8 rhythm observation, broader resource/rest
-semantics for unsupported profiles, Phase 9 profile expansion, and Phase 14
-debugging tooling.
-
-
