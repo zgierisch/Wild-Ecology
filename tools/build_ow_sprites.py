@@ -1,22 +1,32 @@
-"""Build-time tool: converts the sourced "Gen 1-7 OV SPrites" 256x256 4x4
+"""Offline importer: converts user-supplied 256x256 4x4
 walk-cycle sheets (rows: down, left, right, up; columns: 4-frame walk cycle)
 into Gen1Recomp's native NPC walker sprite format -- a 16x96 vertical strip
 of 6 stacked 16x16 frames in the verified order:
   STAND: down=0, up=1, left=2 (right is drawn by the engine mirroring left)
   WALK:  down=3, up=4, left=5 (right mirrors left)
 
-Run once (offline, not at mod load) to (re)generate assets/ow_sprites/.
+Run once with an extracted local sprite directory (offline, never at mod load):
+
+    python tools/build_ow_sprites.py <path-to-user-supplied-sheets>
+
+The generated files are written to generated-assets/ow_sprites/, which is
+intentionally ignored by Git. This tool never downloads or embeds source art.
 Source row order (down, left, right, up) and per-frame vertical bob were
-confirmed by visually inspecting 016.png (Pidgey) and 019.png (Rattata).
+confirmed by visually inspecting representative source sheets.
 """
 import os
 import re
 import sys
 
-from PIL import Image
+try:
+    from PIL import Image
+except ImportError:
+    Image = None
 
-SOURCE_DIR = os.path.join(os.path.dirname(__file__), "..", "Gen 1-7 OV SPrites")
-OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "..", "assets", "ow_sprites")
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+OUTPUT_DIR = os.path.join(PROJECT_ROOT, "generated-assets", "ow_sprites")
+MIN_DEX = 1
+MAX_DEX = 151
 
 CELL_SIZE = 64
 GRID_COLS = 4
@@ -97,15 +107,32 @@ def build_walker_sheet(sourcePath):
 
 
 def main():
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    built, skipped = 0, 0
+    if len(sys.argv) != 2:
+        print("Usage: python tools/build_ow_sprites.py <path-to-extracted-sprite-sheets>", file=sys.stderr)
+        return 2
 
-    for name in sorted(os.listdir(SOURCE_DIR)):
+    if Image is None:
+        print("ERROR: Pillow is required; install it locally with 'python -m pip install Pillow'", file=sys.stderr)
+        return 2
+
+    source_dir = os.path.abspath(sys.argv[1])
+    if not os.path.isdir(source_dir):
+        print(f"ERROR: source directory does not exist: {source_dir}", file=sys.stderr)
+        return 2
+
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    built, skipped, missing = 0, 0, []
+
+    for dex in range(MIN_DEX, MAX_DEX + 1):
+        name = f"{dex:03d}.png"
         match = DEX_FILENAME_RE.match(name)
         if not match:
             continue
 
-        sourcePath = os.path.join(SOURCE_DIR, name)
+        sourcePath = os.path.join(source_dir, name)
+        if not os.path.isfile(sourcePath):
+            missing.append(name)
+            continue
         try:
             sheet = build_walker_sheet(sourcePath)
         except Exception as err:  # noqa: BLE001 -- report and continue
@@ -117,7 +144,11 @@ def main():
         built += 1
 
     print(f"Built {built} walker sheets into {OUTPUT_DIR} ({skipped} skipped)")
+    if missing:
+        print("Missing required Gen I sheets: " + ", ".join(missing), file=sys.stderr)
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -44,17 +44,15 @@ local function spriteIdFor(speciesId)
   return "SPRITE_OW_WILD_" .. tostring(speciesId)
 end
 
--- Built offline by tools/build_ow_sprites.py from the sourced "Gen 1-7 OV
--- SPrites" sheets into Gen1Recomp's native 16x96 6-frame walker format
--- (see that script's header comment for the exact frame order/layout).
--- These files are shipped as-is (full color, never modified on disk);
--- color quantization happens at RUNTIME below, baked to a cache copy.
+-- Imported offline by tools/build_ow_sprites.py from user-supplied sheets into
+-- Gen1Recomp's native 16x96 6-frame walker format. The generated directory is
+-- intentionally local and ignored by Git; missing files use spriteFront.
 local function walkerSpritePath(dex)
   local dexNumber = tonumber(dex)
   if not dexNumber then
     return nil
   end
-  return string.format("assets/ow_sprites/%03d.png", dexNumber)
+  return string.format("generated-assets/ow_sprites/%03d.png", dexNumber)
 end
 
 local function walkerCachePath(dex)

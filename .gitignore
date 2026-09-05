@@ -37,6 +37,9 @@ htmlcov/
 build/
 dist/
 out/
+/external-assets/
+/generated-assets/
+/*.7z
 
 # Mod/tool runtime data
 .cache/
