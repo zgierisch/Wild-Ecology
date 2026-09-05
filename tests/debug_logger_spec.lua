@@ -14,17 +14,7 @@ unloadModule("src.debug.logger")
 local Save = require("src.core.save")
 local Logger = require("src.debug.logger")
 
-local storedState = nil
-Save.init({
-	storage = {
-		get = function(_)
-			return storedState
-		end,
-		set = function(_, value)
-			storedState = value
-		end
-	}
-})
+Save.init(nil)
 
 for index = 1, 30 do
 	Logger.log(index % 2 == 0 and "behavior" or "lifecycle", "entry-" .. tostring(index))
