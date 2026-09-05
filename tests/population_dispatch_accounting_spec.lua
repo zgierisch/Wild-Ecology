@@ -1,20 +1,5 @@
---[[
-This test attempts to reproduce the exact condition reported in live ROUTE_22:
-  selected = 15
-  phase3Entered = 1
-  phase3LoopEntered = ?
-  phase3DispatchAttempts = 0 (or very low)
-  mat ok = 0
-  mat fail = 0
-
-This would indicate that either:
-1. The loop isn't entering
-2. All entities are being filtered before dispatch
-3. AvatarFactory is not available
-4. Some other early-return condition
-
-The test will try various hypotheses.
-]]
+-- Verifies selected-population loop entry, dispatch accounting, and
+-- materialization accounting across two route fixtures.
 
 local Config = require("src.core.config")
 
@@ -89,8 +74,9 @@ end
 print("✓ Loop entry test passed")
 print()
 
--- Test 2: Try with empty population
-print("=== Test 2: Empty Population Handling ===")
+-- Test 2: Second-route smoke check. The conditional assertions still cover
+-- an empty result if one occurs, but the baseline selects actors on this route.
+print("=== Test 2: Second-Route Smoke Check ===")
 storedState = nil
 currentMapId = "ROUTE_UNUSED"
 
