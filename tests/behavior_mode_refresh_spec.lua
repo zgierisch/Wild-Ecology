@@ -26,11 +26,12 @@ local behaviorMode = "FORCE FLEE"
 
 local mod = {
 	storage = {
-		get = function(_)
-			return storedState
+		read = function(_, _game, _key)
+			return storedState, storedState == nil and "not_found" or nil
 		end,
-		set = function(_, value)
+		write = function(_, _game, _key, value)
 			storedState = value
+			return true
 		end
 	},
 	world = {
@@ -68,17 +69,25 @@ local mod = {
 			if key == "phase0_behavior_mode" then
 				return behaviorMode
 			end
-			if key == "phase0_debug_log" then
-				return false
-			end
-			if key == "dev_log_view" then
-				return "both"
-			end
-			if key == "dev_log_lifecycle" or key == "dev_log_behavior" or key == "dev_log_relationships" then
-				return true
-			end
 			return nil
 		end
+	},
+	save = {
+		get = function(_, key, default)
+			local overrides = {
+				phase0_debug_log = false,
+				dev_log_view = "both",
+				dev_log_lifecycle = true,
+				dev_log_behavior = true,
+				dev_log_relationships = true
+			}
+			local value = overrides[key]
+			if value == nil then
+				return default
+			end
+			return value
+		end,
+		set = function() end
 	}
 }
 
@@ -89,8 +98,8 @@ if not WildEcology then
 end
 
 WildEcology.init(mod)
-assertEquals(#spawnCalls, 1, "initial load should spawn one avatar")
-assertEquals(spawnCalls[1].movement, "WALK", "force flee should produce walking movement")
+assertEquals(#spawnCalls, Config.phase3.visibleSubsetSize, "initial load should spawn the visible subset")
+assertEquals(spawnCalls[1].movement, "STAY", "force flee should disable ambient wandering")
 local firstNpcId = spawnCalls[1].npcId
 local firstHandle = handlesById[firstNpcId]
 if not firstHandle then
@@ -100,42 +109,75 @@ local firstDebugState = storedState and storedState.debug and storedState.debug.
 if not firstDebugState then
 	error("debug state should exist after initial spawn")
 end
-assertEquals(firstDebugState.lastState, "FLEE", "debug state should reflect flee after initial spawn")
+local firstScores = firstDebugState.lastBehaviorScores or {}
+local firstInputs = firstDebugState.debugPresetInputs or {}
+assertEquals(firstDebugState.lastState, "FLEE", string.format(
+	"FLEE preset should emerge from normal scoring FLEE=%.2f APPROACH=%.2f INVESTIGATE=%.2f TARGET=%.2f IDLE=%.2f reason=%s inputs=trust:%s threat:%s fear:%s boldness:%s",
+	firstScores.FLEE or 0, firstScores.APPROACH or 0, firstScores.INVESTIGATE or 0,
+	firstScores.TARGET or 0, firstScores.IDLE or 0,
+	tostring(firstDebugState.selectionReason or "unknown") .. " preset=" .. tostring(firstDebugState.debugPreset),
+	tostring(firstInputs.trust), tostring(firstInputs.threatMemory), tostring(firstInputs.currentFear),
+	tostring(firstInputs.boldness)))
 
 behaviorMode = "FORCE IDLE"
 WildEcology.init(mod)
 
 assertEquals(#removeCalls, 0, "changing behavior mode in-zone should not despawn the active avatar")
-assertEquals(#spawnCalls, 1, "changing behavior mode in-zone should not respawn the avatar")
-assertEquals(firstHandle.movement, "STAY", "force idle should update movement in place")
-assertEquals(firstHandle.range, "DOWN", "force idle should update range in place")
-assertEquals(firstHandle.npc.kind, "stand", "force idle should mutate runtime npc behavior in place")
-assertEquals(firstHandle.npc.facing, "down", "force idle should update runtime facing")
+assertEquals(#spawnCalls, Config.phase3.visibleSubsetSize, "changing behavior mode in-zone should not respawn avatars")
 local secondDebugState = storedState and storedState.debug and storedState.debug.phase0 or nil
 if not secondDebugState then
 	error("debug state should exist after in-zone behavior refresh")
 end
 assertEquals(secondDebugState.lastBehaviorMode, "force_idle", "debug state should update to the new behavior mode")
-assertEquals(secondDebugState.lastState, "IDLE", "debug state should update to the new runtime state")
+assertEquals(secondDebugState.debugPreset, "IDLE", "live refresh should apply the IDLE input preset")
+assertEquals(secondDebugState.debugPresetInputs.currentFear, 0, "IDLE preset should replace current fear with calm input")
+assertEquals(secondDebugState.debugPresetInputs.hasTarget, false, "IDLE preset should remove purposeful target input")
 assertEquals(secondDebugState.lastEvent, "mode_change", "debug state should label in-zone mode changes distinctly")
 
 behaviorMode = "idle"
 WildEcology.init(mod)
 assertEquals(#removeCalls, 0, "normalized idle aliases should still apply in place")
-assertEquals(#spawnCalls, 1, "normalized idle aliases should not trigger respawn")
+assertEquals(#spawnCalls, Config.phase3.visibleSubsetSize, "normalized idle aliases should not trigger respawn")
 local thirdDebugState = storedState and storedState.debug and storedState.debug.phase0 or nil
 if not thirdDebugState then
 	error("debug state should exist after normalized idle alias update")
 end
 assertEquals(thirdDebugState.lastBehaviorMode, "force_idle", "idle alias should normalize to force_idle")
-assertEquals(thirdDebugState.lastState, "IDLE", "idle alias should preserve idle state")
+assertEquals(thirdDebugState.debugPreset, "IDLE", "idle alias should preserve the IDLE counterfactual")
 
 behaviorMode = "flee"
 WildEcology.init(mod)
 assertEquals(#removeCalls, 0, "flee alias should not despawn")
-assertEquals(#spawnCalls, 1, "flee alias should not respawn")
-assertEquals(firstHandle.npc.kind, "walk", "flee alias should restore runtime walk behavior")
-assertEquals(firstHandle.npc.radiusX, 3, "flee alias should preserve walk radius")
-assertEquals(firstHandle.npc.radiusY, 3, "flee alias should preserve walk radius")
+assertEquals(#spawnCalls, Config.phase3.visibleSubsetSize, "flee alias should not respawn")
+assertEquals(storedState.debug.phase0.debugPreset, "FLEE", "flee alias should apply the FLEE counterfactual")
+assertEquals(storedState.debug.phase0.debugPresetInputs.threatMemory, 20, "FLEE should supply legitimate threat memory input")
+
+behaviorMode = "FORCE APPROACH"
+WildEcology.init(mod)
+assertEquals(#removeCalls, 0, "force approach should not despawn")
+assertEquals(#spawnCalls, Config.phase3.visibleSubsetSize, "force approach should not respawn")
+if not storedState or not storedState.debug or not storedState.debug.phase0 then
+	error("force approach should update persisted debug state")
+end
+assertEquals(storedState.debug.phase0.debugPreset, "APPROACH", "force approach should apply the APPROACH counterfactual")
+assertEquals(storedState.debug.phase0.debugPresetInputs.trust, 90, "APPROACH should supply high trust input")
+
+behaviorMode = "FORCE INVESTIGATE"
+WildEcology.init(mod)
+assertEquals(#removeCalls, 0, "force investigate should not despawn")
+assertEquals(#spawnCalls, Config.phase3.visibleSubsetSize, "force investigate should not respawn")
+assertEquals(storedState.debug.phase0.debugPreset, "INVESTIGATE", "force investigate should apply the INVESTIGATE counterfactual")
+assertEquals(storedState.debug.phase0.debugPresetInputs.currentFear, 0, "INVESTIGATE should supply calm input")
+
+behaviorMode = "FORCE TARGET"
+WildEcology.init(mod)
+assertEquals(storedState.debug.phase0.debugPreset, "TARGET", "force target should apply the TARGET counterfactual")
+if (storedState.debug.phase0.lastBehaviorScores.TARGET or 0) <= (storedState.debug.phase0.lastBehaviorScores.IDLE or 0) then
+	error("TARGET counterfactual should favor TARGET through restlessness utility")
+end
+
+behaviorMode = "IGNORE PLAYER"
+WildEcology.init(mod)
+assertEquals(storedState.debug.phase0.lastTargetEntityId, nil, "ignore player should remove player as a behavior target")
 
 return true

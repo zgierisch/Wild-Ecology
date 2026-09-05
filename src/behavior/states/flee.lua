@@ -1,6 +1,8 @@
 local Flee = {}
 
-function Flee.tick(_entity)
+function Flee.tick(entity)
+  entity.runtimeState = entity.runtimeState or {}
+  entity.runtimeState.intent = "FLEE"
   return "FLEE"
 end
 

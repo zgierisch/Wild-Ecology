@@ -1,4 +1,5 @@
 local Config = require("src.core.config")
+local Perception = require("src.world.perception")
 
 local function assertEquals(actual, expected, message)
 	if actual ~= expected then
@@ -24,11 +25,12 @@ local nextNpcSerial = 0
 
 local mod = {
 	storage = {
-		get = function(_)
-			return storedState
+		read = function(_, _game, _key)
+			return storedState, storedState == nil and "not_found" or nil
 		end,
-		set = function(_, value)
+		write = function(_, _game, _key, value)
 			storedState = value
+			return true
 		end
 	},
 	world = {
@@ -57,17 +59,25 @@ local mod = {
 			if key == "phase0_behavior_mode" then
 				return "normal"
 			end
-			if key == "phase0_debug_log" then
-				return false
-			end
-			if key == "dev_log_view" then
-				return "both"
-			end
-			if key == "dev_log_lifecycle" or key == "dev_log_behavior" or key == "dev_log_relationships" then
-				return true
-			end
 			return nil
 		end
+	},
+	save = {
+		get = function(_, key, default)
+			local overrides = {
+				phase0_debug_log = false,
+				dev_log_view = "both",
+				dev_log_lifecycle = true,
+				dev_log_behavior = true,
+				dev_log_relationships = true
+			}
+			local value = overrides[key]
+			if value == nil then
+				return default
+			end
+			return value
+		end,
+		set = function() end
 	}
 }
 
@@ -79,11 +89,13 @@ end
 
 -- 1-3. Enter route and spawn persistent phase-0 entity.
 WildEcology.init(mod)
-assertEquals(#spawnCalls, 1, "entering route should spawn one avatar")
+assertEquals(#spawnCalls, Config.phase3.visibleSubsetSize, "entering route should spawn the visible subset")
 
-local routePopulation = storedState
-	and storedState.populations
-	and storedState.populations[Config.phase0.testMapId]
+local Save = require("src.core.save")
+local liveState = Save.getState()
+local routePopulation = liveState
+	and liveState.populations
+	and liveState.populations[Config.phase0.testMapId]
 if not routePopulation or not routePopulation.members then
 	error("phase0 route population should exist in storage")
 end
@@ -99,26 +111,37 @@ if not rel then
 	error("player relationship should exist after initial spawn")
 end
 rel.familiarity = 12
-rel.lastCalmTick = storedState.simulationTick or 0
+rel.lastCalmTick = liveState.simulationTick or 0
+local companionId = routePopulation.order[2]
+local companion = routePopulation.members[companionId]
+Perception.observe(persistent, {
+	{ name = Perception.EVENTS.ENTITY_SEEN, targetEntityId = companion.id }
+}, liveState.simulationTick or 0)
+local interPokemonRelationship = persistent.relationships[companion.id]
+interPokemonRelationship.trust = 7
+interPokemonRelationship.affinity = 4
+local familiarityBeforeDespawn = interPokemonRelationship.familiarity
+local affinityBeforeDespawn = interPokemonRelationship.affinity
 
 -- 5-6. Leave route and confirm runtime avatar was destroyed.
 local firstAvatarId = spawnCalls[1]
 currentMapId = "ROUTE_2"
 WildEcology.shutdown()
-assertEquals(#removeCalls, 1, "leaving route should despawn one runtime avatar")
+assertEquals(#removeCalls, Config.phase3.visibleSubsetSize, "leaving route should despawn the visible subset")
 assertEquals(removeCalls[1], firstAvatarId, "despawn should target the first runtime avatar")
 
 -- 7-10. Re-enter route, rebuild runtime avatar, preserve persistent relationship.
 currentMapId = Config.phase0.testMapId
 WildEcology.init(mod)
-assertEquals(#spawnCalls, 2, "re-entering route should spawn a fresh runtime avatar")
+assertEquals(#spawnCalls, Config.phase3.visibleSubsetSize * 2, "re-entering route should spawn a fresh visible subset")
 assertEquals(spawnCalls[2] ~= firstAvatarId, true, "re-entry should rebuild a new runtime avatar id")
 
-local reloaded = storedState
-	and storedState.populations
-	and storedState.populations[Config.phase0.testMapId]
-	and storedState.populations[Config.phase0.testMapId].members
-	and storedState.populations[Config.phase0.testMapId].members[Config.phase0.testEntityId]
+local reloadedState = Save.getState()
+local reloaded = reloadedState
+	and reloadedState.populations
+	and reloadedState.populations[Config.phase0.testMapId]
+	and reloadedState.populations[Config.phase0.testMapId].members
+	and reloadedState.populations[Config.phase0.testMapId].members[Config.phase0.testEntityId]
 if not reloaded then
 	error("persistent entity should still exist after route re-entry")
 end
@@ -129,5 +152,13 @@ if not reloadedRel then
 	error("player relationship should persist after route re-entry")
 end
 assertEquals(reloadedRel.familiarity, 12, "player familiarity should survive runtime avatar reconstruction")
+assertEquals(reloaded.relationships[companionId].familiarity >= familiarityBeforeDespawn,
+	true, "inter-Pokemon familiarity should survive or gain after reconstruction")
+assertEquals(reloaded.relationships[companionId].trust, 7,
+	"directed inter-Pokemon trust should survive route re-entry")
+assertEquals(reloaded.relationships[companionId].affinity >= affinityBeforeDespawn,
+	true, "directed inter-Pokemon affinity should remain attached to the target ID")
+assertEquals(reloaded.relationships[persistent.id], nil,
+	"route re-entry must not mirror the observer's relationship onto itself")
 
 return true

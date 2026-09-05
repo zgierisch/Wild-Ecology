@@ -6,6 +6,38 @@ local function assertEquals(actual, expected, message)
 	end
 end
 
+-- Public API refusal reasons remain visible at the adapter boundary.
+do
+	local diagnostic = nil
+	AvatarFactory.setSpawnDiagnosticSink(function(event, _, _, _, npcId, outcome)
+		if event == "SPAWN_NPC_RESULT" then
+			diagnostic = { npcId = npcId, outcome = outcome }
+		end
+	end)
+	local mod = {
+		world = {
+			spawnNpc = function()
+				return nil, "no overworld"
+			end
+		}
+	}
+	local entity = {
+		id = "wild:route22:refused",
+		species = "RATTATA",
+		level = 3,
+		home = { mapId = "ROUTE_22" }
+	}
+
+	assertEquals(AvatarFactory.spawn(mod, entity), nil,
+		"public API refusal should not materialize an avatar")
+	assertEquals(diagnostic and diagnostic.npcId, nil,
+		"refused spawn diagnostic should not report an NPC id")
+	assertEquals(diagnostic and diagnostic.outcome,
+		"PUBLIC_API_RETURNED_NIL: no overworld",
+		"refused spawn diagnostic should preserve the API reason")
+	AvatarFactory.setSpawnDiagnosticSink(nil)
+end
+
 -- Public API path: spawnNpc/removeNpc + npc handle attachment.
 do
 	local called = {}
@@ -57,12 +89,95 @@ do
 	assertEquals(handle.npc.kind, "stand", "gen2-style npc should switch to stand")
 	assertEquals(handle.npc.facing, "down", "gen2-style npc should update facing")
 
+	handle.npc.moving = true
+	handle.npc.targetX = 8
+	handle.npc.targetY = 10
+	handle.npc.progress = 0.25
+	entity.runtimeState = { motion = { active = true } }
+	entity.avatar.autonomousMovement = true
+	AvatarFactory.applyBehavior(mod, avatar, entity)
+	assertEquals(handle.npc.moving, true, "disabling stock wander should preserve a mod-driven step")
+	assertEquals(handle.npc.targetY, 10, "active mod-driven destination should survive behavior refresh")
+	assertEquals(handle.npc.progress, 0.25, "active mod-driven progress should survive behavior refresh")
+	entity.runtimeState.motion.active = false
+	entity.avatar.autonomousMovement = nil
+
 	entity.avatar.movement = "WALK"
 	entity.avatar.range = "LEFT_RIGHT"
 	AvatarFactory.applyBehavior(mod, avatar, entity)
 	assertEquals(handle.npc.kind, "walk", "gen2-style npc should switch back to walk")
 	assertEquals(handle.npc.roamDirs[1], "left", "gen2-style npc should apply constrained roam directions")
 	assertEquals(handle.npc.roamDirs[2], "right", "gen2-style npc should apply constrained roam directions")
+end
+
+-- The runtime avatar boundary is formalized behind a dedicated adapter contract.
+do
+	local RuntimeAvatarAdapter = require("src.world.runtime_avatar_adapter")
+	 RuntimeAvatarAdapter.setAvatarFactory(AvatarFactory)
+	local called = {}
+	local handle = { npc = { cellX = 7, cellY = 8, moving = false }, ow = { map = { id = "ROUTE_3" } } }
+	local mod = {
+		world = {
+			spawnNpc = function(_, mapId, objDef)
+				called.mapId = mapId
+				called.objDef = objDef
+				return "ROUTE_3_obj_42"
+			end,
+			npc = function(_, mapId, npcId)
+				called.handleLookup = { mapId = mapId, npcId = npcId }
+				return handle
+			end,
+			removeNpc = function(_, npcId)
+				called.removedNpcId = npcId
+				return true
+			end
+		}
+	}
+	local entity = {
+		id = "wild:route03:0002",
+		species = "RATTATA",
+		level = 3,
+		home = { mapId = "ROUTE_3", spawnX = 7, spawnY = 8 },
+		avatar = { movement = "WALK", range = "ANY" }
+	}
+	local avatar = RuntimeAvatarAdapter.materialize(mod, entity, { cellX = 7, cellY = 8 }, "ROUTE_3")
+	if not avatar then error("runtime avatar adapter should materialize a runtime avatar") end
+	assertEquals(avatar.runtimeAdapter, "RuntimeAvatarAdapter", "avatar should advertise its runtime adapter")
+	assertEquals(RuntimeAvatarAdapter.readPosition(mod, avatar).cellX, 7, "runtime adapter should read the live cell position")
+	assertEquals(RuntimeAvatarAdapter.resolve(mod, avatar) == handle, true, "runtime adapter should resolve the live handle")
+	assertEquals(RuntimeAvatarAdapter.destroy(mod, avatar), true, "runtime adapter should destroy a materialized avatar")
+	assertEquals(called.removedNpcId, "ROUTE_3_obj_42", "runtime adapter should pass through despawn to the runtime backend")
+end
+
+-- A guarded caller's canonical cell overrides every independently stored
+-- coordinate, including zero-valued cells.
+do
+	local called = {}
+	local mod = {
+		world = {
+			spawnNpc = function(_, mapId, objDef)
+				called.mapId = mapId
+				called.objDef = objDef
+				return "CANONICAL_obj_1"
+			end
+		}
+	}
+	local entity = {
+		id = "canonical",
+		species = "PIDGEY",
+		level = 4,
+		home = { mapId = "OLD_MAP", spawnX = 8, spawnY = 9 },
+		avatar = { x = 40, y = 41 }
+	}
+	local avatar = AvatarFactory.spawn(mod, entity, { cellX = 0, cellY = 0 }, "CURRENT_MAP")
+	assertEquals(called.mapId, "CURRENT_MAP", "canonical materialization should use the validated current map")
+	assertEquals(called.objDef.x, 0, "canonical x=0 should be passed unchanged")
+	assertEquals(called.objDef.y, 0, "canonical y=0 should be passed unchanged")
+	if not avatar.requestedCell then
+		error("avatar should record the exact requested cell")
+	end
+	assertEquals(avatar.requestedCell.cellX, 0, "avatar should record the exact requested x")
+	assertEquals(avatar.requestedCell.cellY, 0, "avatar should record the exact requested y")
 end
 
 -- Public API path: fallback map from world:current() when entity home map is missing.

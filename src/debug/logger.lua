@@ -3,6 +3,11 @@ local Save = require("src.core.save")
 local Logger = {}
 
 local MAX_ENTRIES = 24
+local observer = nil
+
+function Logger.setObserver(callback)
+  observer = callback
+end
 
 local function ensureLogState(state)
   state.debug = state.debug or {}
@@ -37,6 +42,10 @@ function Logger.log(category, message)
     category = category or "system",
     message = tostring(message or "")
   }
+
+  if observer then
+    observer(entry)
+  end
 
   logState.nextSequence = logState.nextSequence + 1
   logState.entries[#logState.entries + 1] = entry
